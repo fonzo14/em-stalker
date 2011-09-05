@@ -56,7 +56,7 @@ module EMStalker
 
     def fiber!
       @fiberized = true
-
+      require 'fiber_pool'
       eigen = (class << self; self; end)
       eigen.instance_eval do
         %w(use reserve ignore watch peek stats list delete touch bury kick pause release enqueue).each do |meth|
@@ -230,18 +230,30 @@ module EMStalker
       add_deferrable(&blk)
     end
 
-    def each_job(timeout = nil, &blk)
+    def each_job(options = {}, &blk)
+      options = {:timeout => 0}.merge(options)
       if @fiberized
+        @jobs_count = 0
         work = Proc.new do
-          Fiber.new do
-            job = reserve(timeout)
-            blk.call(job)
-          end.resume
-          EM.next_tick { work.call }          
+          if @jobs_count < (options[:pool] - 1)
+            EM.add_timer(0.03) { work.call }
+            Fiber.new do
+              job = reserve(options[:timeout])
+              @jobs_count += 1
+              if (@jobs_count > (options[:pool] - 1))
+                job.release
+              else
+                blk.call(job)
+              end
+              @jobs_count -= 1
+            end.resume  
+          else
+            EM.add_timer(0.5) { work.call }
+          end
         end
       else
         work = Proc.new do
-          r = reserve(timeout)
+          r = reserve(options[:timeout])
           r.callback do |job|
             blk.call(job)
             EM.next_tick { work.call }

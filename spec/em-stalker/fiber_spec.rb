@@ -47,7 +47,7 @@ if RUBY_VERSION > '1.9'
           mock.should_receive(:tube).with("toto")
           mock.should_receive(:foo).with("bonjour")
           
-          bean.each_job(0) do |job|
+          bean.each_job(:timeout => 0) do |job|
             mock.tube(job.tube)
             mock.foo(job.body)
             job_body = job.body

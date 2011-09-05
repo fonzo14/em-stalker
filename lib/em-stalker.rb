@@ -17,7 +17,7 @@ module EMStalker
   class NoSuchJob < RuntimeError; end
   
   def enqueue(tube, msg, opts = {})
-    jack.enqueue(tube, msg, opts)
+    client.enqueue(tube, msg, opts)
   end
   
   def job(j, &blk)
@@ -25,9 +25,9 @@ module EMStalker
     @@jobs[j] = blk
   end
   
-  def work(jobs = nil)
+  def work(options = {}, jobs = nil)
     prepare(jobs)
-    jack.each_job(0) do |job|
+    client.each_job(options) do |job|
       job_handler = @@jobs[job.tube]
       raise(NoSuchJob, job.tube) unless job_handler
       begin
@@ -36,7 +36,7 @@ module EMStalker
       rescue SystemExit
         raise
       rescue => e
-        job.bury rescue nil
+        job.bury(65536)
         error_handler.call(e, job.tube, job.body)
       end
     end
@@ -53,22 +53,23 @@ module EMStalker
     jobs.each do |job|
       raise(NoSuchJob, job) unless @@jobs[job]
     end
-    jobs.each { |job| jack.watch(job) }
-    jack.watched_tubes.each do |tube|
-      jack.ignore(tube) unless jobs.include?(tube)
+    jobs.each { |job| client.watch(job) }
+    client.watched_tubes.each do |tube|
+      client.ignore(tube) unless jobs.include?(tube)
     end
   end
   
-  def jack
-    unless @@jack
-      @@jack ||= EMJack::Connection.new
-      @@jack.fiber!
+  def client
+    unless defined?(@@client)
+      @@client ||= Connection.new
+      @@client.fiber!
     end
-    @@jack
+    @@client
   end
   
   def error_handler
-    @@error_handler || Proc.new { |e, tube, body| puts "Error on job #{tube} / #{body.to_s} #{e.backtrace}" }
+    @@error_handler ||= Proc.new { |e, tube, body| puts "EMStalker : Error on job #{tube} / #{body.to_s}"[0..150]; puts [e.message,*e.backtrace].join("\n")}
+    @@error_handler
   end
   
 end
