@@ -1,5 +1,6 @@
 require 'eventmachine'
 require 'yaml'
+require 'json'
 
 module EMStalker
   class Connection
@@ -9,7 +10,7 @@ module EMStalker
 
     @@handlers = []
 
-    attr_accessor :host, :port
+    attr_accessor :host, :port, :watched_tubes
 
     def self.register_handler(handler)
       @@handlers ||= []
@@ -58,7 +59,7 @@ module EMStalker
 
       eigen = (class << self; self; end)
       eigen.instance_eval do
-        %w(use reserve ignore watch peek stats list delete touch bury kick pause release put enqueue).each do |meth|
+        %w(use reserve ignore watch peek stats list delete touch bury kick pause release enqueue).each do |meth|
           alias_method :"a#{meth}", meth.to_sym
           define_method(meth.to_sym) do |*args|
             fib = Fiber.current
@@ -201,7 +202,8 @@ module EMStalker
       add_deferrable(&blk)
     end
 
-    def extract_put_options(opts = {})
+    def enqueue(tube, msg, opts = {}, &blk)
+      
       opts = {} if opts.nil?
       
       pri = (opts[:priority] || 65536).to_i
@@ -213,16 +215,11 @@ module EMStalker
 
       ttr = (opts[:ttr] || 300).to_i
       ttr = 300 if ttr < 0
-      
-      [pri,delay,ttr]
-    end
 
-    def enqueue(tube, msg, opts = {}, &blk)
-      
-      pri, delay, ttr = extract_put_options(opts)
-      
-      m = msg.to_s
-      
+      job_body = [tube,msg].to_json
+
+      m = job_body.to_s
+
       callback {
         use_cmd = @conn.command(:use, tube)
         put_cmd = @conn.command_with_data(:put, m, pri, delay, ttr, m.bytesize)
@@ -230,17 +227,6 @@ module EMStalker
       }
       
       add_deferrable(&blk)
-      add_deferrable(&blk)
-    end
-
-    def put(msg, opts = {}, &blk)
-
-      pri, delay, ttr = extract_put_options(opts)
-
-      m = msg.to_s
-
-      callback { @conn.send_with_data(:put, m, pri, delay, ttr, m.bytesize) }
-
       add_deferrable(&blk)
     end
 

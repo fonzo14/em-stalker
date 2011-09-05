@@ -1,10 +1,11 @@
 module EMStalker
   class Job
-    attr_accessor :jobid, :body, :ttr, :conn
+    attr_accessor :jobid, :body, :ttr, :conn, :tube
 
-    def initialize(conn, jobid, body)
+    def initialize(conn, jobid, body, tube = "default")
       @conn = conn
       @jobid = jobid.to_i
+      @tube = tube
       @body = body
     end
 

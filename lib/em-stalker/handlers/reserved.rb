@@ -1,3 +1,5 @@
+require "json"
+
 module EMStalker
   module Handler
     class Reserved
@@ -16,7 +18,9 @@ module EMStalker
         id = $2.to_i
         bytes = $3.to_i
 
-        job = EMStalker::Job.new(conn, id, body)
+        tube, body = JSON.parse(body)
+
+        job = EMStalker::Job.new(conn, id, body, tube)
         deferrable.succeed(job)
 
         true
