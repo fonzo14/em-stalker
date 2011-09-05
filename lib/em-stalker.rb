@@ -60,7 +60,10 @@ module EMStalker
   end
   
   def jack
-    @@jack ||= EMJack::Connection.new
+    unless @@jack
+      @@jack ||= EMJack::Connection.new
+      @@jack.fiber!
+    end
     @@jack
   end
   
