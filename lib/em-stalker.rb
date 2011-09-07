@@ -32,18 +32,25 @@ module EMStalker
       raise(NoSuchJob, job.tube) unless job_handler
       begin
         job_handler.call(job.body)
-        job.delete
+        job_complete_handler.call(job)
       rescue SystemExit
         raise
       rescue => e
-        job.bury(65536)
-        error_handler.call(e, job.tube, job.body)
+        job_error_handler.call(e, job)
       end
     end
   end
   
   def on_error(&blk)
-    @@error_handler = blk    
+    client.on_error(&blk)
+  end
+  
+  def on_job_complete(&blk)
+    @@job_complete_handler = blk 
+  end
+  
+  def on_job_error(&blk)
+    @@job_error_handler = blk    
   end
   
   private
@@ -67,9 +74,16 @@ module EMStalker
     @@client
   end
   
-  def error_handler
-    @@error_handler ||= Proc.new { |e, tube, body| puts "EMStalker : Error on job #{tube} / #{body.to_s}"[0..150]; puts [e.message,*e.backtrace].join("\n")}
-    @@error_handler
+  def job_complete_handler
+    @@job_complete_handler ||= Proc.new { |job| }
+  end
+  
+  def job_error_handler
+    @@job_error_handler ||= Proc.new do |e,job| 
+      job.bury(65536)
+      puts "EMStalker : Error on job #{job.tube} / #{job.body.to_s}"[0..150]
+      puts [e.message,*e.backtrace].join("\n")
+    end
   end
   
 end

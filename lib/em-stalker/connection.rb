@@ -56,7 +56,6 @@ module EMStalker
 
     def fiber!
       @fiberized = true
-      require 'fiber_pool'
       eigen = (class << self; self; end)
       eigen.instance_eval do
         %w(use reserve ignore watch peek stats list delete touch bury kick pause release enqueue).each do |meth|
@@ -231,16 +230,18 @@ module EMStalker
     end
 
     def each_job(options = {}, &blk)
-      options = {:timeout => 0}.merge(options)
+      default_options = {:timeout => 0, :max_jobs => 20}
+      default_options[:condition] = Proc.new { |jobs_count| jobs_count < options[:max_jobs] }
+      options = default_options.merge(options)
       if @fiberized
         @jobs_count = 0
         work = Proc.new do
-          if @jobs_count < (options[:pool] - 1)
-            EM.add_timer(0.03) { work.call }
+          if (options[:condition].call(@jobs_count))
+            EM.add_timer(0.02) { work.call }
             Fiber.new do
               job = reserve(options[:timeout])
               @jobs_count += 1
-              if (@jobs_count > (options[:pool] - 1))
+              if (@jobs_count > options[:max_jobs])
                 job.release
               else
                 blk.call(job)
@@ -248,7 +249,7 @@ module EMStalker
               @jobs_count -= 1
             end.resume  
           else
-            EM.add_timer(0.5) { work.call }
+            EM.add_timer(0.1) { work.call }
           end
         end
       else
