@@ -1,6 +1,6 @@
 require 'eventmachine'
 require 'yaml'
-require 'json'
+require 'msgpack'
 
 module EMStalker
   class Connection
@@ -215,7 +215,7 @@ module EMStalker
       ttr = (opts[:ttr] || 300).to_i
       ttr = 300 if ttr < 0
 
-      job_body = [tube,msg].to_json
+      job_body = MessagePack.pack [tube,msg]
 
       m = job_body.to_s
 

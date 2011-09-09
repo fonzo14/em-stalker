@@ -415,7 +415,7 @@ end
 
     ['reserved', 'found'].each do |type|
       it "#{type} messages" do
-        msg = ["tube","this is mys message"].to_json
+        msg = ["tube","this is mys message"].to_msgpack
 
         df.should_receive(:succeed).with do |job|
           job.class.should == EMStalker::Job
@@ -476,7 +476,7 @@ HERE
       msg1 = "First half of the message\r\n"
       msg2 = "Last half of the message"
 
-      msg = ["tube",msg1+msg2].to_json
+      msg = ["tube",msg1+msg2].to_msgpack
 
       df.should_receive(:succeed).with do |job|
         job.body.should == "#{msg1}#{msg2}"
@@ -489,7 +489,7 @@ HERE
       msg1 = "First half of the message\r\n"
       msg2 = "Last half of the message"
 
-      msg = ["tube",msg1+msg2].to_json
+      msg = ["tube",msg1+msg2].to_msgpack
 
       df.should_receive(:succeed).with do |job|
         job.body.should == "#{msg1}#{msg2}"
@@ -504,7 +504,7 @@ HERE
       msg1 = "First half of the message\r\n"
       msg2 = "Last half of the message"
 
-      msg = ["tube",msg1+msg2].to_json
+      msg = ["tube",msg1+msg2].to_msgpack
 
       df.should_receive(:succeed).with do |job|
         job.body.should == "#{msg1}#{msg2}"

@@ -1,4 +1,4 @@
-require "json"
+require "msgpack"
 
 module EMStalker
   module Handler
@@ -18,7 +18,7 @@ module EMStalker
         id = $2.to_i
         bytes = $3.to_i
 
-        tube, body = JSON.parse(body)
+        tube, body = MessagePack.unpack(body)
 
         job = EMStalker::Job.new(conn, id, body, tube)
         deferrable.succeed(job)
