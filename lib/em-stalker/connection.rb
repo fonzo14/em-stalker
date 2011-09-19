@@ -10,7 +10,7 @@ module EMStalker
 
     @@handlers = []
 
-    attr_accessor :host, :port, :watched_tubes
+    attr_accessor :host, :port, :watched_tubes, :stopped
 
     def self.register_handler(handler)
       @@handlers ||= []
@@ -41,6 +41,8 @@ module EMStalker
         use(@tube)
         watch(@tube)
       end
+      
+      @stopped = false
     end
 
     def reset_tube_state
@@ -228,6 +230,14 @@ module EMStalker
       add_deferrable(&blk)
       add_deferrable(&blk)
     end
+    
+    def quit
+      @stopped = true
+      EM.add_timer(1) do 
+        puts "Stopping reactor #{jobs_count}"
+        EM.stop if (@jobs_count == 0)
+      end
+    end
 
     def each_job(options = {}, &blk)
       default_options = {:timeout => 0, :max_jobs => 20}
@@ -237,7 +247,7 @@ module EMStalker
         @jobs_count = 0
         work = Proc.new do
           if (options[:condition].call(@jobs_count))
-            EM.add_timer(0.02) { work.call }
+            EM.add_timer(0.02) { work.call } unless @stopped
             Fiber.new do
               job = reserve(options[:timeout])
               @jobs_count += 1
@@ -249,7 +259,7 @@ module EMStalker
               @jobs_count -= 1
             end.resume  
           else
-            EM.add_timer(0.1) { work.call }
+            EM.add_timer(0.1) { work.call } unless @stopped
           end
         end
       else
@@ -257,10 +267,10 @@ module EMStalker
           r = reserve(options[:timeout])
           r.callback do |job|
             blk.call(job)
-            EM.next_tick { work.call }
+            EM.next_tick { work.call } unless @stopped
           end
           r.errback do
-            EM.next_tick { work.call }
+            EM.next_tick { work.call } unless @stopped
           end
         end
       end      

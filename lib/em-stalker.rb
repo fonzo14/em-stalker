@@ -41,6 +41,10 @@ module EMStalker
     end
   end
   
+  def quit
+    client.quit
+  end
+  
   def on_error(&blk)
     client.on_error(&blk)
   end
