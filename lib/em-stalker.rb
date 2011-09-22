@@ -32,10 +32,8 @@ module EMStalker
       raise(NoSuchJob, job.tube) unless job_handler
       begin
         job_handler.call(job.body)
-        job_complete_handler.call(job)
-      rescue SystemExit
-        raise
-      rescue => e
+        job_complete_handler.call(job)        
+      rescue Exception => e
         job_error_handler.call(e, job)
       end
     end
