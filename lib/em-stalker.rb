@@ -20,19 +20,26 @@ module EMStalker
     client.enqueue(tube, msg, opts)
   end
   
-  def job(j, &blk)
+  def job(j, options = {}, &blk)
+    options = {:period => -1}.merge(options)
     @@jobs ||= {}
-    @@jobs[j] = blk
+    @@jobs[j] = {:handler => blk, :last_run => 1.year.ago, :period => options[:period]}
   end
   
   def work(options = {}, jobs = nil)
     prepare(jobs)
     client.each_job(options) do |job|
-      job_handler = @@jobs[job.tube]
+      job_handler = @@jobs[job.tube][:handler]
       raise(NoSuchJob, job.tube) unless job_handler
-      begin
-        job_handler.call(job.body)
-        job_success_handler.call(job)
+      begin        
+        if (@@jobs[job.tube][:last_run] < @@jobs[job.tube][:period].ago)
+          @@jobs[job.tube][:last_run] = Time.now
+          job_handler.call(job.body)
+          job_success_handler.call(job)
+        else
+          job.delete
+          logger.info "Deleting job #{job.tube}. Period #{@@jobs[job.tube][:period]} seconds. Last run at #{@@jobs[job.tube][:last_run]}"
+        end
       rescue Exception => e
         job_error_handler.call(e, job)
       ensure
@@ -59,6 +66,14 @@ module EMStalker
   
   def on_job_error(&blk)
     @@job_error_handler = blk    
+  end
+  
+  def logger
+    @@logger
+  end
+  
+  def logger=(logger)
+    @@logger = logger
   end
   
   private
