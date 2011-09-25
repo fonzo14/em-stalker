@@ -32,9 +32,11 @@ module EMStalker
       raise(NoSuchJob, job.tube) unless job_handler
       begin
         job_handler.call(job.body)
-        job_complete_handler.call(job)        
+        job_success_handler.call(job)
       rescue Exception => e
         job_error_handler.call(e, job)
+      ensure
+        after_job_handler.call(job)
       end
     end
   end
@@ -47,8 +49,12 @@ module EMStalker
     client.on_error(&blk)
   end
   
-  def on_job_complete(&blk)
-    @@job_complete_handler = blk 
+  def after_job(&blk)
+    @@after_job_handler = blk 
+  end
+  
+  def on_job_success(&blk)
+    @@job_success_handler = blk 
   end
   
   def on_job_error(&blk)
@@ -76,8 +82,12 @@ module EMStalker
     @@client
   end
   
-  def job_complete_handler
-    @@job_complete_handler ||= Proc.new { |job| }
+  def job_success_handler
+    @@job_success_handler ||= Proc.new { |job| }
+  end
+  
+  def after_job_handler
+    @@after_job_handler ||= Proc.new { |job| }
   end
   
   def job_error_handler

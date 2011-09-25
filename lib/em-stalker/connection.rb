@@ -253,7 +253,7 @@ module EMStalker
         @jobs_count = 0
         work = Proc.new do
           if (options[:condition].call(@jobs_count))
-            EM.add_timer(0.02) { work.call } unless @stopped
+            EM.add_timer(0.03) { work.call } unless @stopped
             Fiber.new do              
               job = reserve(options[:timeout])
               @jobs_count += 1
@@ -265,7 +265,7 @@ module EMStalker
               @jobs_count -= 1                
             end.resume  
           else
-            EM.add_timer(0.1) { work.call } unless @stopped
+            EM.add_timer(0.15) { work.call } unless @stopped
           end
         end
       else
