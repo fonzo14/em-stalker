@@ -20,26 +20,19 @@ module EMStalker
     client.enqueue(tube, msg, opts)
   end
   
-  def job(j, options = {}, &blk)
-    options = {:period => -1}.merge(options)
+  def job(j, &blk)
     @@jobs ||= {}
-    @@jobs[j] = {:handler => blk, :last_run => 1.year.ago, :period => options[:period]}
+    @@jobs[j] = blk
   end
   
   def work(options = {}, jobs = nil)
     prepare(jobs)
     client.each_job(options) do |job|
-      job_handler = @@jobs[job.tube][:handler]
+      job_handler = @@jobs[job.tube]
       raise(NoSuchJob, job.tube) unless job_handler
-      begin        
-        if (@@jobs[job.tube][:last_run] < @@jobs[job.tube][:period].ago)
-          @@jobs[job.tube][:last_run] = Time.now
-          job_handler.call(job.body)
-          job_success_handler.call(job)
-        else
-          job.delete
-          logger.info "Deleting job #{job.tube}. Period #{@@jobs[job.tube][:period]} seconds. Last run at #{@@jobs[job.tube][:last_run]}"
-        end
+      begin                
+        job_handler.call(job.body)
+        job_success_handler.call(job)          
       rescue Exception => e
         job_error_handler.call(e, job)
       ensure
@@ -76,6 +69,14 @@ module EMStalker
     @@logger = logger
   end
   
+  def client
+    unless defined?(@@client)
+      @@client ||= Connection.new
+      @@client.fiber!
+    end
+    @@client
+  end
+  
   private
   def prepare(jobs = nil)
     raise NoJobsDefined unless defined?(@@jobs)
@@ -87,15 +88,7 @@ module EMStalker
     client.watched_tubes.each do |tube|
       client.ignore(tube) unless jobs.include?(tube)
     end
-  end
-  
-  def client
-    unless defined?(@@client)
-      @@client ||= Connection.new
-      @@client.fiber!
-    end
-    @@client
-  end
+  end  
   
   def job_success_handler
     @@job_success_handler ||= Proc.new { |job| }
