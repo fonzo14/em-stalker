@@ -30,9 +30,11 @@ module EMStalker
     client.each_job(options) do |job|
       job_handler = @@jobs[job.tube]
       raise(NoSuchJob, job.tube) unless job_handler
-      begin                
-        job_handler.call(job.body)
-        job_success_handler.call(job)          
+      begin 
+        Timeout::timeout(job.ttr - 2) do
+          job_handler.call(job.body)
+          job_success_handler.call(job)
+        end
       rescue Exception => e
         job_error_handler.call(e, job)
       ensure
