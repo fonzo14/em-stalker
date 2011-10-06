@@ -1,5 +1,7 @@
 $:.unshift(File.dirname(__FILE__))
 
+require 'timeout'
+
 require 'em-stalker/job'
 require 'em-stalker/errors'
 require 'em-stalker/beanstalk_connection'
