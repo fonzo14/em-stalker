@@ -21,19 +21,20 @@ module EMStalker
   def enqueue(tube, msg, opts = {})
     client.enqueue(tube, msg, opts)
   end
-  
-  def job(j, &blk)
+
+  def job(j, options = {}, &blk)
+    options = {:ttr => 300}.merge(options)
     @@jobs ||= {}
-    @@jobs[j] = blk
+    @@jobs[j] = {:ttr => options[:ttr], :handler => blk}
   end
   
   def work(options = {}, jobs = nil)
     prepare(jobs)
     client.each_job(options) do |job|
-      job_handler = @@jobs[job.tube]
+      job_handler = @@jobs[job.tube][:handler]
       raise(NoSuchJob, job.tube) unless job_handler
       begin
-        ttr = job.stats['ttr'].to_i
+        ttr = @@jobs[job.tube][:ttr]
         Timeout::timeout(ttr - 2) do
           job = before_job_handler.call(job)
           job_handler.call(job.body)
