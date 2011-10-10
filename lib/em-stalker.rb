@@ -33,7 +33,8 @@ module EMStalker
       job_handler = @@jobs[job.tube]
       raise(NoSuchJob, job.tube) unless job_handler
       begin
-        Timeout::timeout(job.stats['ttr'].to_i - 2) do
+        ttr = job.stats['ttr'].to_i
+        Timeout::timeout(ttr - 2) do
           job = before_job_handler.call(job)
           job_handler.call(job.body)
           job_success_handler.call(job)
