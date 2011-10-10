@@ -34,6 +34,7 @@ module EMStalker
       raise(NoSuchJob, job.tube) unless job_handler
       begin
         Timeout::timeout(job.stats['ttr'].to_i - 2) do
+          job = before_job_handler.call(job)
           job_handler.call(job.body)
           job_success_handler.call(job)
         end
@@ -55,6 +56,10 @@ module EMStalker
   
   def on_error(&blk)
     client.on_error(&blk)
+  end
+  
+  def before_job(&blk)
+    @@before_job_handler = blk 
   end
   
   def after_job(&blk)
@@ -100,6 +105,10 @@ module EMStalker
   
   def job_success_handler
     @@job_success_handler ||= Proc.new { |job| }
+  end
+  
+  def before_job_handler
+    @@before_job_handler ||= Proc.new { |job| }
   end
   
   def after_job_handler
