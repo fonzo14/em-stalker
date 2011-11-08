@@ -106,15 +106,15 @@ module EMStalker
   end  
   
   def job_success_handler
-    @@job_success_handler ||= Proc.new { |job| }
+    @@job_success_handler ||= Proc.new { |job| job }
   end
   
   def before_job_handler
-    @@before_job_handler ||= Proc.new { |job| }
+    @@before_job_handler ||= Proc.new { |job| job }
   end
   
   def after_job_handler
-    @@after_job_handler ||= Proc.new { |job| }
+    @@after_job_handler ||= Proc.new { |job| job }
   end
   
   def job_error_handler
