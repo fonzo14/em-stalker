@@ -235,7 +235,7 @@ module EMStalker
       unless (@stopped)
         @stopped = true
         EM::Synchrony.add_periodic_timer(2.0) do
-          if (@jobs_count > 0)
+          if (@jobs_count && @jobs_count > 0)
             puts "#{@jobs_count} job(s) are still running"
           else
             puts "All jobs done. Stop reactor"
@@ -253,7 +253,7 @@ module EMStalker
         @jobs_count = 0
         work = Proc.new do
           if (options[:condition].call(@jobs_count))
-            EM.add_timer(0.03) { work.call } unless @stopped
+            EM.add_timer(0.05) { work.call } unless @stopped
             Fiber.new do              
               job = reserve(options[:timeout])
               @jobs_count += 1
