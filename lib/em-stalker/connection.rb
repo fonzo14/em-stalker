@@ -234,11 +234,11 @@ module EMStalker
     def quit
       unless (@stopped)
         @stopped = true
-        EM::Synchrony.add_periodic_timer(2.0) do
+        EM::Synchrony.add_periodic_timer(0.25) do
           if (@jobs_count && @jobs_count > 0)
-            puts "#{@jobs_count} job(s) are still running"
+            log.info "#{@jobs_count} job(s) are still running"
           else
-            puts "All jobs done. Stop reactor"
+            log.info "All jobs done. Stop reactor"
             EM.stop
           end
         end
