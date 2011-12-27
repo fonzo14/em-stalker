@@ -282,12 +282,16 @@ module EMStalker
     end
 
     def connected
+      EMStalker.logger.warn "EMStalker : connected"
       @reconnect_proc = nil
       @retries = 0
       succeed
     end
 
     def disconnected
+      
+      EMStalker.logger.warn "EMStalker : disconnected"
+      
       d = @deferrables.dup
 
       ## if reconnecting, need to fail ourself to remove any callbacks
@@ -308,10 +312,17 @@ module EMStalker
 
       @retries += 1
       
-      EM.add_timer([60, @retries ** (5 ** 0.5)].min.to_i) { @reconnect_proc.call }
+      to = [60, @retries ** (5 ** 0.5)].min.to_i
+      
+      EMStalker.logger.info "EMStalker : #{@retries} retries in #{to} seconds"
+      
+      EM.add_timer(to) { @reconnect_proc.call }
     end
 
     def reconnect(prev_used, prev_watched)
+      
+      EMStalker.logger.info "EMStalker : Reconnecting"
+      
       @conn.reconnect(@host, @port)
 
       use(prev_used) if prev_used
