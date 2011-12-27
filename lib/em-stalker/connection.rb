@@ -48,7 +48,7 @@ module EMStalker
       prev_watched = @watched_tubes.dup if @watched_tubes
 
       @used_tube = 'default'
-      @watched_tubes = ['default']
+      @watched_tubes = []
       @deferrables = []
 
       return [prev_used, prev_watched]
@@ -86,6 +86,7 @@ module EMStalker
     end
 
     def watch(tube, &blk)
+      EMStalker.logger.debug "EMStalker : watching #{tube}"
       return if @watched_tubes.include?(tube)
 
       callback { @conn.send(:watch, tube) }
@@ -282,10 +283,19 @@ module EMStalker
     end
 
     def connected
-      EMStalker.logger.warn "EMStalker : connected"
+      EMStalker.logger.info "EMStalker : connected"
       @reconnect_proc = nil
       @retries = 0
       succeed
+
+      Fiber.new { use(@prev_used) }.resume if @prev_used
+
+      if @prev_watched
+        [@prev_watched].flatten.compact.each do |tube|
+          @fiberized ? awatch(tube) : watch(tube)
+        end
+      end
+      
     end
 
     def disconnected
@@ -314,22 +324,18 @@ module EMStalker
       
       to = [60, @retries ** (5 ** 0.5)].min.to_i
       
-      EMStalker.logger.info "EMStalker : #{@retries} retries in #{to} seconds"
+      EMStalker.logger.info "EMStalker : retry #{@retries} in #{to} seconds"
       
       EM.add_timer(to) { @reconnect_proc.call }
     end
 
     def reconnect(prev_used, prev_watched)
       
-      EMStalker.logger.info "EMStalker : Reconnecting"
+      @prev_used = prev_used
+      @prev_watched = prev_watched
       
       @conn.reconnect(@host, @port)
-
-      use(prev_used) if prev_used
-
-      [prev_watched].flatten.compact.each do |tube|
-        @fiberized ? awatch(tube) : watch(tube)
-      end
+      
     end
 
     def reconnect!
