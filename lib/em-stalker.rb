@@ -50,11 +50,7 @@ module EMStalker
   
   def quit
     client.quit
-  end  
-    
-  def on_disconnect(&blk)
-    client.on_disconnect(&blk)
-  end
+  end    
   
   def on_error(&blk)
     client.on_error(&blk)

@@ -6,8 +6,6 @@ module EMStalker
   class Connection
     include EM::Deferrable
 
-    RETRY_COUNT = 5
-
     @@handlers = []
 
     attr_accessor :host, :port, :watched_tubes, :stopped
@@ -298,14 +296,6 @@ module EMStalker
       set_deferred_status(nil)
       d.each { |df| df.fail(:disconnected) }
 
-      if @retries >= RETRY_COUNT
-        if @disconnected_callback
-          @disconnected_callback.call
-        else
-          raise EMStalker::Disconnected
-        end
-      end
-
       prev_used, prev_watched = reset_tube_state
       unless @reconnect_proc
         recon = Proc.new { reconnect(prev_used, prev_watched) }
@@ -317,7 +307,8 @@ module EMStalker
       end
 
       @retries += 1
-      EM.add_timer(5) { @reconnect_proc.call }
+      
+      EM.add_timer([60, @retries ** (5 ** 0.5)].min.to_i) { @reconnect_proc.call }
     end
 
     def reconnect(prev_used, prev_watched)
@@ -351,10 +342,6 @@ module EMStalker
 
     def on_error(&blk)
       @error_callback = blk
-    end
-
-    def on_disconnect(&blk)
-      @disconnected_callback = blk
     end
 
     def received(data)
