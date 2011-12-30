@@ -33,6 +33,7 @@ module EMStalker
     client.each_job(options) do |job|
       job_handler = @@jobs[job.tube][:handler]
       raise(NoSuchJob, job.tube) unless job_handler
+      start_time = Time.now.utc.to_f
       begin
         ttr = @@jobs[job.tube][:ttr]
         Timeout::timeout(ttr - 2) do
@@ -43,7 +44,7 @@ module EMStalker
       rescue Exception => e
         job_error_handler.call(e, job)
       ensure
-        after_job_handler.call(job)
+        after_job_handler.call(job,start_time)
       end
     end
   end
