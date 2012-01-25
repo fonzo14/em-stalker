@@ -37,9 +37,9 @@ module EMStalker
       begin
         ttr = @@jobs[job.tube][:ttr]
         Timeout::timeout(ttr - 2) do
-          job = before_job_handler.call(job)
-          job_handler.call(job.body)
-          job_success_handler.call(job)
+          job    = before_job_handler.call(job)
+          result = job_handler.call(job.body)
+          job_success_handler.call(job, result)
         end
       rescue Exception => e
         job_error_handler.call(e, job)
