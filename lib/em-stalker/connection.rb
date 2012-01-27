@@ -216,7 +216,7 @@ module EMStalker
       ttr = (opts[:ttr] || 300).to_i
       ttr = 300 if ttr < 0
 
-      job_body = MessagePack.pack([tube,msg]).force_encoding("UTF-8")
+      job_body = MessagePack.pack([tube,msg])
 
       m = job_body.to_s
 
