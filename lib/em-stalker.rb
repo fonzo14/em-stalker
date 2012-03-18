@@ -81,13 +81,16 @@ module EMStalker
     @@logger = logger
   end
   
-  def client(opts = {})
-    unless defined?(@@client)
-      opts = {:host => 'localhost', :port => 11300}.merge(opts)
-      @@client ||= Connection.new(opts)
-      @@client.fiber!
-    end
+  def client
     @@client
+  end
+  
+  def new_client(opts = {})
+    opts = {:host => 'localhost', :port => 11300}.merge(opts)
+    connection = Connection.new(opts)
+    connection.fiber!
+    @@client ||= connection
+    connection
   end
   
   private
