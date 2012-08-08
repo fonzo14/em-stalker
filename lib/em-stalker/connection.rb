@@ -245,24 +245,26 @@ module EMStalker
     end
 
     def each_job(options = {}, &blk)
-      default_options = {:timeout => nil, :max_jobs => 20}
+      default_options = {:timeout => 0, :max_jobs => 20}
       default_options[:condition] = Proc.new { |jobs_count| jobs_count < options[:max_jobs] }
       options = default_options.merge(options)
       if @fiberized
         @jobs_count = 0
         work = Proc.new do
           if (options[:condition].call(@jobs_count))
-            job = reserve(options[:timeout])
-            @jobs_count += 1
-            if (@jobs_count > options[:max_jobs])
-              job.release
-            else
-              EM.next_tick { Fiber.new { work.call }.resume } unless @stopped  
-              blk.call(job)
-            end                
-            @jobs_count -= 1
+            EM.add_timer(0.05) { work.call } unless @stopped
+            Fiber.new do              
+              job = reserve(options[:timeout])
+              @jobs_count += 1
+              if (@jobs_count > options[:max_jobs])
+                job.release
+              else
+                blk.call(job)
+              end                
+              @jobs_count -= 1                
+            end.resume  
           else
-            EM.add_timer(0.25) { Fiber.new { work.call }.resume } unless @stopped
+            EM.add_timer(0.25) { work.call } unless @stopped
           end
         end
       else
