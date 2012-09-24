@@ -28,6 +28,7 @@ module EMStalker
 
       @data = ""
       @retries = 0
+      @offset = 0
       @in_reserve = false
       @fiberized = false
 
@@ -365,6 +366,12 @@ module EMStalker
       @data << data
 
       until @data.empty?
+        if @offset != 0 # bugfix by thomas. Potentially dangerous
+          @data = @data[-@offset..-1]
+          log.warn "[EMStalker] offseting #{@offset}"
+          @offset = 0
+        end
+
         idx = @data.index(/\r\n/)
         break if idx.nil?
 
@@ -404,6 +411,8 @@ module EMStalker
     def extract_body!(bytes, data)
       rem = data[(data.index(/\r\n/) + 2)..-1]
       return [nil, data] if rem.bytesize < bytes
+
+      @offset = rem.bytesize - bytes - 2
 
       body = rem[0..(bytes - 1)]
       data = rem[(bytes + 2)..-1]
