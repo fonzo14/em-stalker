@@ -246,26 +246,41 @@ module EMStalker
     end
 
     def each_job(options = {}, &blk)
-      default_options = {:timeout => 0, :max_jobs => 20}
+      default_options = {:max_polling_period => 5, :timeout => 0, :max_jobs => 20}
       default_options[:condition] = Proc.new { |jobs_count| jobs_count < options[:max_jobs] }
       options = default_options.merge(options)
+
       if @fiberized
-        @jobs_count = 0
+        @jobs_count   = 0
+        @last_job     = Time.now.to_f
+        @last_attempt = Time.now.to_f
+
         work = Proc.new do
-          if (options[:condition].call(@jobs_count))
-            EM.add_timer(0.05) { work.call } unless @stopped
-            Fiber.new do              
-              job = reserve(options[:timeout])
-              @jobs_count += 1
-              if (@jobs_count > options[:max_jobs])
-                job.release
-              else
-                blk.call(job)
-              end                
-              @jobs_count -= 1                
-            end.resume  
-          else
-            EM.add_timer(0.25) { work.call } unless @stopped
+          unless @stopped
+            if options[:condition].call(@jobs_count)
+              Fiber.new do
+                @last_attempt = Time.now.to_f              
+                job           = reserve(options[:timeout])
+                @last_job     = Time.now.to_f
+                @jobs_count   += 1
+
+                if (@jobs_count > options[:max_jobs])
+                  job.release
+                else
+                  blk.call(job)
+                end
+
+                @jobs_count -= 1                
+              end.resume
+            end
+          end
+        end
+
+        EM::Synchrony.add_periodic_timer(0.05) do
+          da = Time.now.to_f - @last_attempt
+          dj = @last_attempt - @last_job
+          if (da > dj || da > options[:max_polling_period])
+            work.call
           end
         end
       else
@@ -368,7 +383,7 @@ module EMStalker
       until @data.empty?
         if @offset != 0 # bugfix by thomas. Potentially dangerous
           @data = @data[-@offset..-1]
-          log.warn "[EMStalker] offseting #{@offset}"
+          EMStalker.logger.warn "[EMStalker] offseting #{@offset}" if EMStalker.logger
           @offset = 0
         end
 
