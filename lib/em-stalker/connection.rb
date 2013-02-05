@@ -383,7 +383,7 @@ module EMStalker
       until @data.empty?
         if @offset != 0 # bugfix by thomas. Potentially dangerous
           @data = @data[-@offset..-1]
-          EMStalker.logger.warn "[EMStalker] offseting #{@offset}" if EMStalker.logger
+          EMStalker.logger.debug "[EMStalker] offsetting #{@offset}" if EMStalker.logger && EMStalker.logger.debug?
           @offset = 0
         end
 
