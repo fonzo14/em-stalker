@@ -299,7 +299,7 @@ module EMStalker
     end
 
     def connected
-      EMStalker.logger.info "EMStalker : connected"
+      EMStalker.logger.info "EMStalker : connected" if EMStalker.logger
       @reconnect_proc = nil
       @retries = 0
       succeed

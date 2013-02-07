@@ -26,33 +26,37 @@ module EMStalker
   
   def work(client_keys, options = {}, jobs = nil)
     prepare(client_keys, jobs)
-    @@clients.select { |k,v| client_keys.include? k }.each do |key,client|
-      client.each_job(options) do |job|
-        job_handler = @@jobs[job.tube][:handler]
-        raise(NoSuchJob, job.tube) unless job_handler
-        start_time = Time.now.utc.to_f
-        begin
-          ttr = @@jobs[job.tube][:ttr]
-          Timeout::timeout(ttr - 2) do
-            job    = before_job_handler.call(job, key)
-            result = job_handler.call(job.body, key)
-            job_success_handler.call(job, result, key)
+    @@clients.select { |k,v| client_keys.include? k }.each do |key,connections|
+      connections.each do |connection|
+        connection.each_job(options) do |job|
+          job_handler = @@jobs[job.tube][:handler]
+          raise(NoSuchJob, job.tube) unless job_handler
+          start_time = Time.now.utc.to_f
+          begin
+            ttr = @@jobs[job.tube][:ttr]
+            Timeout::timeout(ttr - 2) do
+              job    = before_job_handler.call(job, key)
+              result = job_handler.call(job.body, key)
+              job_success_handler.call(job, result, key)
+            end
+          rescue Exception => e
+            job_error_handler.call(e, job, key)
+          ensure
+            after_job_handler.call(job, start_time, key)
           end
-        rescue Exception => e
-          job_error_handler.call(e, job, key)
-        ensure
-          after_job_handler.call(job, start_time, key)
         end
       end
     end
   end
   
+  # quit all connections
   def quit
-    @@clients.values.each { |client| client.quit }
+    connections(:all).each { |c| c.quit }
   end    
   
+  # set the on_error callback to all connections
   def on_error(&blk)
-    @@clients.values.each { |client| client.on_error(&blk) }
+    connections(:all).each { |c| c.on_error(&blk) }
   end
   
   def before_job(&blk)
@@ -72,6 +76,7 @@ module EMStalker
   end
   
   def logger
+    @@logger ||= nil
     @@logger
   end
   
@@ -79,43 +84,41 @@ module EMStalker
     @@logger = logger
   end
   
-  def clients(keys)
-    @@clients.select { |k,v| keys.include? k }.values
-  end
-
-  def client(key)
-    @@clients[key]
-  end
-  
   def new_client(opts = {})
     opts = {:host => 'localhost', :port => 11300}.merge(opts)
     raise "It should define a key for beanstalkd client" unless opts.key?(:key)
-    keys = opts.delete(:key)
+    keys = opts[:key]
     keys = [keys] unless keys.respond_to?(:each)
     connection = Connection.new(opts)
     connection.fiber!
     @@clients ||= {}
     keys.each do |key|
-      if @@clients.key?(key)
-        raise "Key #{key} is already in use for beanstalkd client"
-      else
-        @@clients[key] = connection 
-      end
+      @@clients[key] ||= []
+      @@clients[key] << connection 
     end
+    logger.debug "Creating em-stalker connection #{opts}" if logger
     connection
   end
   
   private
+  def connections(keys)
+    if keys == :all
+      @@clients.values.flatten.uniq { |connection| [connection.host, connection.port] }
+    else
+      @@clients.select { |k,v| keys.include?(k) }.values.flatten.uniq { |connection| [connection.host, connection.port] }
+    end
+  end
+
   def prepare(client_keys, jobs = nil)
     raise NoJobsDefined unless defined?(@@jobs)
     jobs ||= @@jobs.keys
     jobs.each do |job|
       raise(NoSuchJob, job) unless @@jobs[job]
     end
-    jobs.each { |job| clients(client_keys).each { |client| client.watch(job) } }
-    clients(client_keys).each do |client|
-      client.watched_tubes.each do |tube|
-        client.ignore(tube) unless jobs.include?(tube)
+    jobs.each { |job| connections(client_keys).each { |c| c.watch(job) } }
+    connections(client_keys).each do |connection|
+      connection.watched_tubes.each do |tube|
+        connection.ignore(tube) unless jobs.include?(tube)
       end
     end
   end  
