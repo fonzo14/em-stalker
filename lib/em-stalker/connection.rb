@@ -250,38 +250,56 @@ module EMStalker
       default_options[:condition] = Proc.new { |jobs_count| jobs_count < options[:max_jobs] }
       options = default_options.merge(options)
 
+
       if @fiberized
-        @jobs_count   = 0
-        @last_job     = Time.now.to_f
-        @last_attempt = Time.now.to_f
+        if options[:max_jobs] == 1 # no concurrency
+          options[:timeout] = nil # No concurrence. We can wait as long as we want for the next job
 
-        work = Proc.new do
-          unless @stopped
-            if options[:condition].call(@jobs_count)
-              Fiber.new do
-                @last_attempt = Time.now.to_f              
-                job           = reserve(options[:timeout])
-                @last_job     = Time.now.to_f
-                @jobs_count   += 1
-
-                if (@jobs_count > options[:max_jobs])
-                  job.release
-                else
-                  blk.call(job)
-                end
-
-                @jobs_count -= 1                
+          work = Proc.new do
+            unless @stopped
+              Fiber.new do  
+                job = reserve(options[:timeout])
+                blk.call(job)
+                EM.next_tick { work.call } unless @stopped 
               end.resume
             end
           end
-        end
 
-        EM::Synchrony.add_periodic_timer(0.05) do
-          da = Time.now.to_f - @last_attempt
-          dj = @last_attempt - @last_job
-          if (da > dj || da > options[:max_polling_period])
-            work.call
+        else # concurrency
+
+          @jobs_count   = 0
+          @last_job     = Time.now.to_f
+          @last_attempt = Time.now.to_f
+
+          work = Proc.new do
+            unless @stopped
+              if options[:condition].call(@jobs_count)
+                Fiber.new do
+                  @last_attempt = Time.now.to_f              
+                  job           = reserve(options[:timeout])
+                  @last_job     = Time.now.to_f
+                  @jobs_count   += 1
+
+                  if (@jobs_count > options[:max_jobs])
+                    job.release
+                  else
+                    blk.call(job)
+                  end
+
+                  @jobs_count -= 1
+                end.resume
+              end
+            end
           end
+
+          EM::Synchrony.add_periodic_timer(0.05) do
+            da = Time.now.to_f - @last_attempt
+            dj = @last_attempt - @last_job
+            if (da > dj || da > options[:max_polling_period])
+              work.call
+            end
+          end
+
         end
       else
         work = Proc.new do
@@ -294,7 +312,8 @@ module EMStalker
             EM.next_tick { work.call } unless @stopped
           end
         end
-      end      
+      end
+
       work.call
     end
 
@@ -316,7 +335,7 @@ module EMStalker
 
     def disconnected
       
-      EMStalker.logger.warn "EMStalker : disconnected"
+      EMStalker.logger.warn "EMStalker : disconnected" if EMStalker.logger
       
       d = @deferrables.dup
 
